@@ -1,0 +1,12 @@
+---
+title: "linear_models"
+author: "Tiffany Xi"
+date: "11/8/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
