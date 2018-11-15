@@ -1,0 +1,171 @@
+---
+title: "Cross Validation"
+output: github_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+library(tidyverse)
+library(modelr)
+library(mgcv)
+
+set.seed(1)
+
+theme_set(theme_bw() + theme(legend.position = "bottom"))
+```
+
+## Examples
+
+```{r}
+nonlin_df = tibble(
+  id = 1:100,
+  x = runif(100, 0, 1),
+  y = 1 - 10 * (x - .3) ^ 2 + rnorm(100, 0, .3)
+)
+
+ggplot(nonlin_df, aes(x = x, y = y)) + geom_point() + theme_bw()
+
+```
+
+```{r}
+train_df = sample_n(nonlin_df, 80)
+test_df = anti_join(nonlin_df, train_df, by = "id")
+
+ggplot(train_df, aes(x = x, y = y)) + 
+  geom_point() + 
+  geom_point(data = test_df, color = "red")
+
+```
+
+```{r}
+lin_mod = lm(y ~ x, data = train_df)# not complex enough
+nonlin_mod = mgcv::gam(y ~ s(x), data = train_df)#fit smooth curve
+wiggly_mod = mgcv::gam(y ~ s(x, k = 30), sp = 10e-6, data = train_df)#overfitting, too complex
+```
+
+```{r}
+train_df %>% 
+  add_predictions(nonlin_mod) %>% 
+  ggplot(aes(x = x, y = y)) + geom_point() + 
+  geom_line(aes(y = pred), color = "red")
+```
+
+```{r}
+train_df %>% 
+  gather_predictions(lin_mod, nonlin_mod, wiggly_mod) %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = x, y = y)) + 
+  geom_point() + 
+  geom_line(aes(y = pred), color = "red") + 
+  facet_wrap(~model)
+```
+
+```{r}
+rmse(lin_mod, test_df)
+
+rmse(nonlin_mod, test_df)#pick lowest one
+
+rmse(wiggly_mod, test_df)
+```
+
+
+```{r}
+cv_df = 
+  crossv_mc(nonlin_df, 100) 
+```
+
+```{r}
+cv_df %>% pull(train) %>% .[[1]] %>% as_tibble
+cv_df %>% pull(test) %>% .[[1]] %>% as_tibble
+
+cv_df =
+  cv_df %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+```
+
+```{r}
+cv_df = 
+  cv_df %>% 
+  mutate(lin_mod    = map(train, ~lm(y ~ x, data = .x)),
+         nonlin_mod = map(train, ~mgcv::gam(y ~ s(x), data = .x)),
+         wiggly_mod = map(train, ~gam(y ~ s(x, k = 30), sp = 10e-6, data = .x))) %>% 
+  mutate(rmse_lin    = map2_dbl(lin_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_nonlin = map2_dbl(nonlin_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_wiggly = map2_dbl(wiggly_mod, test, ~rmse(model = .x, data = .y)))
+```
+
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  gather(key = model, value = rmse) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
+```{r}
+child_growth = read_csv("./data/nepalese_children.csv")
+
+skimr::skim(child_growth)
+child_growth %>% 
+  ggplot(aes(x = weight, y = armc)) + 
+  geom_point(alpha = .5)
+```
+
+Piecewise linear fit
+
+```{r}
+child_growth =
+  child_growth %>% 
+  mutate(weight_sp = (weight > 7) * (weight - 7))
+```
+
+```{r}
+lin_mod = lm(armc ~ weight, data = child_growth)
+pwl_mod = lm(armc ~ weight + weight_sp, data = child_growth)
+nonlin_mod = gam(armc ~ s(weight), data = child_growth)
+
+
+child_growth %>% 
+  gather_predictions(lin_mod, pwl_mod, nonlin_mod) %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = weight, y = armc)) + 
+  geom_point(alpha = .5) +
+  geom_line(aes(y = pred), color = "red") + 
+  facet_grid(~model)
+```
+
+```{r}
+cv_df =
+  crossv_mc(child_growth, 100) %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+```
+
+```{r}
+cv_df = 
+  cv_df %>% 
+  mutate(lin_mod = map(train, ~lm(armc ~ weight, data = .x)),
+         pwl_mod = map(train, ~lm(armc ~ weight + weight_sp, data = .x)),
+         nonlin_mod = map(train, ~gam(armc ~ s(weight), data = as_tibble(.x)))) %>% 
+  mutate(rmse_lin    = map2_dbl(lin_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_pwl = map2_dbl(pwl_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_nonlin = map2_dbl(nonlin_mod, test, ~rmse(model = .x, data = .y)))
+```
+
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  gather(key = model, value = rmse) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
