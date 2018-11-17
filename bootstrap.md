@@ -4,6 +4,8 @@ Bootstrap
 Examples
 --------
 
+### Bootstrapping in SLR
+
 ``` r
 n_samp = 250
 
@@ -56,6 +58,8 @@ lm(y ~ x, data = sim_df_nonconst) %>%
 |:------------|---------:|----------:|----------:|--------:|
 | (Intercept) |     1.934|      0.105|     18.456|        0|
 | x           |     3.112|      0.075|     41.661|        0|
+
+Drawing one bootstrap sample
 
 ``` r
 boot_sample = function(df) {
@@ -148,6 +152,8 @@ boot_straps %>%
 ```
 
 <img src="bootstrap_files/figure-markdown_github/unnamed-chunk-8-1.png" width="90%" />
+
+Analyzing bootstrap samples
 
 ``` r
 bootstrap_results = 

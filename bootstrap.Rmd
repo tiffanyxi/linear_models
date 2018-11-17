@@ -21,6 +21,7 @@ theme_set(theme_bw() + theme(legend.position = "bottom"))
 
 ## Examples
 
+### Bootstrapping in SLR
 ```{r}
 n_samp = 250
 
@@ -60,6 +61,8 @@ lm(y ~ x, data = sim_df_nonconst) %>%
   knitr::kable(digits = 3)
 ```
 
+Drawing one bootstrap sample
+
 ```{r}
 boot_sample = function(df) {
   sample_frac(df, replace = TRUE)
@@ -74,6 +77,7 @@ boot_sample(sim_df_nonconst) %>%
 500 times okay
 more times are better(time-consuming)
 random forest
+
 ```{r}
 boot_straps = data_frame(
   strap_number = 1:1000,
@@ -87,6 +91,7 @@ some data are oversampled
 others are underrepresented
 
 every resample are different
+
 ```{r}
 boot_straps %>% 
   filter(strap_number %in% 1:2) %>% 
@@ -103,6 +108,8 @@ boot_straps %>%
   stat_smooth(method = "lm", se = FALSE) +
   facet_grid(~strap_number) 
 ```
+
+Analyzing bootstrap samples
 
 ```{r}
 bootstrap_results = 
